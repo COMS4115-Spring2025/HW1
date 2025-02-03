@@ -1,0 +1,77 @@
+name: Autograding
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Autograding
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install OCaml
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ocaml
+          
+      - name: Compile submission
+        run: |
+          ocamlopt -o a.out submission_hw1.ml unit_tests_hw1.ml
+        
+      - name: Run tests and analyze results
+        run: |
+          OUTPUT=$(./a.out)
+          echo "Test Results:"
+          echo "============"
+          echo "$OUTPUT"
+          echo "============"
+          
+          # Initialize failure flag
+          FAILED=0
+          
+          # Check setup test
+          if ! echo "$OUTPUT" | grep -q "Output: 9"; then
+            echo "❌ Setup test failed: The basic setup test did not produce 'Output: 9'"
+            FAILED=1
+          else
+            echo "✅ Setup test passed"
+          fi
+          
+          # Check each problem
+          PROBLEMS=("Problem 1" "Problem 3.A" "Problem 3.B" "Problem 4" "Problem 5" "Problem 6" "Problem 7.A" "Problem 7.B")
+          
+          for problem in "${PROBLEMS[@]}"; do
+            if echo "$OUTPUT" | grep -A 1 "^$problem:" | grep -q "OOPS"; then
+              echo "❌ $problem failed"
+              FAILED=1
+            else
+              echo "✅ $problem passed"
+            fi
+          done
+          
+          # Create or update summary file
+          echo "## Test Results Summary" > $GITHUB_STEP_SUMMARY
+          echo "### Compilation Status" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Code compiled successfully" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "$OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          
+          # Exit with appropriate status
+          if [ $FAILED -eq 1 ]; then
+            echo "Some tests failed. See detailed results above."
+            exit 1
+          else
+            echo "All tests passed! 🎉"
+          fi
+
+      - name: Test completion
+        if: always()
+        run: |
+          echo "Grading completed"
